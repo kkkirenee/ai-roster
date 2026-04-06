@@ -28,7 +28,7 @@ st.markdown("""
     
     /* 1. 今日(7號) 霧霾藍焦點：更淡更細 */
     .fc-day-today, .fc-daygrid-day.fc-day-today {
-        background-color: rgba(108, 122, 137, 0.1) !important; 
+        background-color:#FFFFFF !important; 
         border: 1px solid rgba(108, 122, 137, 0.3) !important; 
     }
 
