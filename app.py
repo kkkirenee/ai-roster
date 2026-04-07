@@ -78,7 +78,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 4. 功能控制區
-st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:0.9rem;'>✨ 班表小助手</p>", unsafe_allow_html=True)
+st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:1.1rem;'>✨班表自動辨識</p>", unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
 with c1: u_name = st.text_input("N", value=st.session_state.form_data["name"], placeholder="姓名", label_visibility="collapsed")
 with c2: u_id = st.text_input("I", value=st.session_state.form_data["id"], placeholder="員編", label_visibility="collapsed")
@@ -87,7 +87,7 @@ with c4: u_rank = st.selectbox("R", ["請選擇職級", "FF", "FY"], label_visib
 
 b1, b2 = st.columns([1, 2])
 with b1:
-    if st.button("💖 儲存資訊"):
+    if st.button("💖儲存資訊"):
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
 with b2:
