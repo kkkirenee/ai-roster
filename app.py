@@ -1,3 +1,4 @@
+import streamlit as st
 from PIL import Image
 import google.generativeai as genai
 import json
@@ -6,19 +7,19 @@ import re
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar
 
-# 1. 網頁設定
+# 1. 網頁設定 (這行必須是除了 import 之外的第一行 Streamlit 指令)
 st.set_page_config(page_title="My Flight Calendar", layout="wide")
 
 # 2. 安全讀取金鑰
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("❌ 找不到金鑰！請檢查 Streamlit Secrets 設定。")
+    st.error("Missing GOOGLE_API_KEY in Secrets.")
 else:
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     except Exception as e:
-        st.error(f"❌ 金鑰設定出錯：{str(e)}")
+        st.error(f"API Configuration Error: {str(e)}")
 
-# --- 3. 讀取 CSV ---
+# 3. 讀取 CSV
 @st.cache_data
 def load_flight_data():
     try:
@@ -34,9 +35,9 @@ flight_db = load_flight_data()
 if 'calendar_events' not in st.session_state:
     st.session_state.calendar_events = []
 if 'form_data' not in st.session_state:
-    st.session_state.form_data = {"name": "", "id": "", "fleet": "機隊", "rank": "職級"}
+    st.session_state.form_data = {"name": "", "id": "", "fleet": "---", "rank": "---"}
 
-# --- CSS 視覺 ---
+# 5. CSS 視覺樣式
 st.markdown("""
     <style>
     :root { color-scheme: dark !important; }
@@ -55,11 +56,16 @@ st.markdown("""
         background-color: #161b22 !important; color: #d1d5db !important; border: 1.5px solid #4b5563 !important; border-radius: 15px !important;
     }
     .fc-event-title { font-size: 2.2rem !important; font-weight: 900 !important; color: #ffffff !important; }
+    .fc-v-event, .fc-daygrid-event {
+        background: rgba(162, 181, 205, 0.25) !important;
+        border-left: 6px solid #a2b5cd !important;
+        border-radius: 12px !important;
+    }
     header, footer { visibility: hidden; }
     </style>
 """, unsafe_allow_html=True)
 
-# 5. 控制區
+# 6. 介面佈局
 st.markdown('<p class="sub-title">班表自動辨識</p>', unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
 with c1: u_name = st.text_input("N", value=st.session_state.form_data["name"], placeholder="姓名", label_visibility="collapsed")
@@ -69,63 +75,41 @@ with c4: u_rank = st.selectbox("R", ["職級", "FF", "FY"], label_visibility="co
 
 b1, b2 = st.columns([1, 2])
 with b1:
-    if st.button("💖 儲存資訊"):
+    if st.button("儲存資訊"):
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
 with b2:
-    uploaded_file = st.file_uploader("上傳", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Upload", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-# 6. 核心辨識邏輯：現場抓取可用模型
-if uploaded_file and st.button("🚀 開始解析班表"):
-    with st.spinner("🔍 正在現場偵測可用模型通道..."):
+# 7. AI 辨識邏輯
+if uploaded_file and st.button("開始解析班表"):
+    with st.spinner("AI 正在努力讀圖..."):
         try:
-            # 1. 現場抓取可用模型清單
+            # 自動偵測可用模型
             available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            
-            # 2. 挑選最適合的模型 (優先找 flash, 再找 pro, 最後隨便抓一個)
-            target_model = None
-            for m in available_models:
-                if 'flash' in m.lower(): target_model = m; break
-            if not target_model:
-                for m in available_models:
-                    if 'pro' in m.lower(): target_model = m; break
-            if not target_model and available_models:
-                target_model = available_models[0]
+            target_model = next((m for m in available_models if 'flash' in m), available_models[0] if available_models else None)
 
-            if not target_model:
-                st.error("❌ 您的 API Key 無法執行 generateContent，請檢查 Google AI Studio 權限。")
-            else:
+            if target_model:
                 model = genai.GenerativeModel(target_model)
                 img = Image.open(uploaded_file)
-                prompt = """
-                這是一張2026年4月的班表。請讀取粉紅色大字班號及其對應日期。
-                班號後有橫線標記為 overnight: true。
-                回傳 JSON: [{"title": "116", "start": "2026-04-03", "overnight": false}]
-                """
+                prompt = "Return JSON list: [{'title': '116', 'start': '2026-04-03', 'overnight': false}]. Only 2026-04 flights. If flight has a dash line after it, overnight: true."
                 response = model.generate_content([prompt, img])
-                res_text = response.text
-                
-                match = re.search(r'\[.*\]', res_text, re.DOTALL)
+                match = re.search(r'\[.*\]', response.text, re.DOTALL)
                 if match:
-                    raw_data = json.loads(match.group())
+                    raw = json.loads(match.group())
                     events = []
-                    for it in raw_data:
+                    for it in raw:
                         ev = {"title": it['title'], "start": it['start'], "allDay": True}
                         if it.get('overnight'):
                             d = datetime.strptime(it['start'], "%Y-%m-%d")
                             ev["end"] = (d + timedelta(days=2)).strftime("%Y-%m-%d")
                         events.append(ev)
                     st.session_state.calendar_events = events
-                    st.success(f"✅ 使用 {target_model} 辨識成功！")
                     st.rerun()
-                else:
-                    st.warning("格式解析失敗，AI 回傳內容：")
-                    st.code(res_text)
-                    
         except Exception as e:
-            st.error(f"❌ 偵測過程發生錯誤：{str(e)}")
+            st.error(f"Error during analysis: {str(e)}")
 
-# 7. 名牌卡片
+# 8. 名牌卡片
 f = st.session_state.form_data
 st.markdown(f"""
     <div class="crew-card">
@@ -133,17 +117,17 @@ st.markdown(f"""
             <div>
                 <div style="font-size: 0.7rem; color: #a2b5cd; font-weight: bold;">CREW ID CARD</div>
                 <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff;">{f["name"] if f["name"] else "------"}</div>
-                <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800;">#{f["id"] if f["id"] else "------"}</div>
+                <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800; margin-top: 5px;">#{f["id"] if f["id"] else "------"}</div>
             </div>
             <div style="text-align: right;">
                 <div style="font-size: 1.1rem; color: #eabcc3; font-weight: 900; border: 2px solid #eabcc3; padding: 5px 15px; border-radius: 18px;">{f["fleet"]} / {f["rank"]}</div>
-                <div style="font-size: 1.2rem; color: #6c7a89; margin-top: 15px; font-weight: 900;">🗓️ 2026 APRIL</div>
+                <div style="font-size: 1.2rem; color: #6c7a89; margin-top: 15px; font-weight: 900;">2026 APRIL</div>
             </div>
         </div>
     </div>
 """, unsafe_allow_html=True)
 
-# 8. 月曆顯示
+# 9. 月曆顯示
 calendar(events=st.session_state.calendar_events, options={
     "initialView": "dayGridMonth", "initialDate": "2026-04-01", "fixedWeekCount": False, "aspectRatio": 0.85, "headerToolbar": {"left":"", "center":"", "right":""}
 }, key="flight_calendar")
