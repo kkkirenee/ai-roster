@@ -22,7 +22,7 @@ if 'calendar_events' not in st.session_state:
 if 'form_data' not in st.session_state:
     st.session_state.form_data = {"name": "", "id": "", "fleet": "---", "rank": "---"}
 
-# --- CSS 視覺重塑：包含強行修改上傳按鈕文字 ---
+# --- CSS 視覺重塑：回歸原始穩定的上傳組件 ---
 st.markdown("""
     <style>
     :root { color-scheme: dark !important; }
@@ -31,30 +31,12 @@ st.markdown("""
 
     /* 名牌卡片樣式 */
     .crew-card {
-        background: linear-gradient(35deg, #1c2128 0%, #0e1117 100%);
+        background: linear-gradient(135deg, #1c2128 0%, #0e1117 100%);
         border: 2px solid #eabcc3;
         border-radius: 25px !important;
         padding: 22px;
         margin-bottom: 15px;
         box-shadow: 0 10px 25px rgba(234, 188, 195, 0.15);
-    }
-
-    /* 關鍵：強行修改上傳按鈕的文字 */
-    [data-testid="stFileUploader"] section button div::after {
-        content: "📎上傳班表";
-        visibility: visible;
-        display: block;
-        position: absolute;
-        background: linear-gradient(90deg, #eabcc3 0%, #f1d5d9 100%);
-        top: 0; left: 0; right: 0; bottom: 0;
-        line-height: 20px;
-        color: #0e1117;
-        font-weight: 800;
-        border-radius: 15px;
-        text-align: center;
-    }
-    [data-testid="stFileUploader"] section button div {
-        visibility: hidden;
     }
 
     /* 輸入框與下拉選單 */
@@ -95,19 +77,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 4. 功能控制區
-st.markdown("<p style='color:#eabcc3; margin-bottom:5px; font-size:2.0rem;'>✨班表自動辨識</p>", unsafe_allow_html=True)
+st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:0.9rem;'>✨ 班表小助手</p>", unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
 with c1: u_name = st.text_input("N", value=st.session_state.form_data["name"], placeholder="姓名", label_visibility="collapsed")
 with c2: u_id = st.text_input("I", value=st.session_state.form_data["id"], placeholder="員編", label_visibility="collapsed")
-with c3: u_fleet = st.selectbox("F", ["機隊", "A321", "B738"], label_visibility="collapsed")
-with c4: u_rank = st.selectbox("R", ["職級", "FF", "FY"], label_visibility="collapsed")
+with c3: u_fleet = st.selectbox("F", ["請選擇機隊", "A321", "B738"], label_visibility="collapsed")
+with c4: u_rank = st.selectbox("R", ["請選擇職級", "FF", "FY"], label_visibility="collapsed")
 
 b1, b2 = st.columns([1, 2])
 with b1:
-    if st.button("💖儲存資訊"):
+    if st.button("💖 儲存資訊"):
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
 with b2:
+    # 回歸原始上傳按鈕，最穩定！
     uploaded_file = st.file_uploader("上傳班表", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
 if uploaded_file and st.button("🚀 開始自動辨識"):
