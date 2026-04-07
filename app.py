@@ -22,7 +22,7 @@ if 'calendar_events' not in st.session_state:
 if 'form_data' not in st.session_state:
     st.session_state.form_data = {"name": "", "id": "", "fleet": "---", "rank": "---"}
 
-# --- CSS 視覺重塑：全黑底、暖粉紅圓潤造型 ---
+# --- CSS 視覺重塑：包含強行修改上傳按鈕文字 ---
 st.markdown("""
     <style>
     :root { color-scheme: dark !important; }
@@ -37,6 +37,24 @@ st.markdown("""
         padding: 22px;
         margin-bottom: 15px;
         box-shadow: 0 10px 25px rgba(234, 188, 195, 0.15);
+    }
+
+    /* 關鍵：強行修改上傳按鈕的文字 */
+    [data-testid="stFileUploader"] section button div::after {
+        content: "📎 上傳班表";
+        visibility: visible;
+        display: block;
+        position: absolute;
+        background: linear-gradient(90deg, #eabcc3 0%, #f1d5d9 100%);
+        top: 0; left: 0; right: 0; bottom: 0;
+        line-height: 45px;
+        color: #0e1117;
+        font-weight: 800;
+        border-radius: 15px;
+        text-align: center;
+    }
+    [data-testid="stFileUploader"] section button div {
+        visibility: hidden;
     }
 
     /* 輸入框與下拉選單 */
@@ -86,35 +104,15 @@ with c4: u_rank = st.selectbox("R", ["職級", "FF", "FY"], label_visibility="co
 
 b1, b2 = st.columns([1, 2])
 with b1:
-    if st.button("💖 儲存資訊"):
+    if st.button("💖儲存資訊"):
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
-with b2:/* 強制修改 Streamlit 上傳按鈕的文字 */
-    section[data-testid="stFileUploader"] button span::text {
-        display: none;
-    }
-    section[data-testid="stFileUploader"] button::before {
-        content: "📎 上傳班表";
-        font-weight: bold;
-    }
-    
-    /* 針對不同版本的 Streamlit 強制覆蓋瀏覽按鈕文字 */
-    div[data-testid="stFileUploader"] section button div::after {
-        content: "上傳班表";
-        display: block;
-        position: absolute;
-        background: #eabcc3; /* 配合妳的暖粉紅 */
-        top: 0; left: 0; right: 0; bottom: 0;
-        line-height: 45px;
-        color: #0e1117;
-    }
-    # 這裡已將標籤改為「上傳班表」
+with b2:
     uploaded_file = st.file_uploader("上傳班表", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-if uploaded_file and st.button("🚀開始自動辨識"):
-    with st.spinner("AI 正在解析班表中..."):
+if uploaded_file and st.button("🚀 開始自動辨識"):
+    with st.spinner("AI 正在解析班表中... 🐾"):
         success = False
-        # 這裡會優先嘗試 1.5 Flash 節省額度
         for m_name in ['gemini-1.5-flash', 'gemini-2.5-flash']:
             try:
                 model = genai.GenerativeModel(model_name=m_name)
@@ -130,7 +128,7 @@ if uploaded_file and st.button("🚀開始自動辨識"):
 
 st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. 月曆上方：名牌卡片
+# 5. 名牌卡片
 f = st.session_state.form_data
 st.markdown(f"""
     <div class="crew-card">
@@ -138,7 +136,7 @@ st.markdown(f"""
             <div>
                 <div style="font-size: 0.7rem; color: #a2b5cd; letter-spacing: 2px; margin-bottom: 5px; font-weight: bold;">CREW ID CARD</div>
                 <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff; line-height: 1.2;">
-                    {f["name"] if f["name"] != "" else "------"}
+                    {f["name"] if f["name"] != "" else "尚未輸入"}
                 </div>
                 <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800; margin-top: 5px; letter-spacing: 1px;">
                     #{f["id"] if f["id"] != "" else "------"}
