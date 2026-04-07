@@ -31,7 +31,7 @@ st.markdown("""
 
     /* 名牌卡片樣式 */
     .crew-card {
-        background: linear-gradient(135deg, #1c2128 0%, #0e1117 100%);
+        background: linear-gradient(35deg, #1c2128 0%, #0e1117 100%);
         border: 2px solid #eabcc3;
         border-radius: 25px !important;
         padding: 22px;
@@ -41,7 +41,7 @@ st.markdown("""
 
     /* 關鍵：強行修改上傳按鈕的文字 */
     [data-testid="stFileUploader"] section button div::after {
-        content: "📎 上傳班表";
+        content: "📎上傳班表";
         visibility: visible;
         display: block;
         position: absolute;
@@ -49,7 +49,7 @@ st.markdown("""
         top: 0; left: 0; right: 0; bottom: 0;
         line-height: 20px;
         color: #0e1117;
-        font-weight: 150;
+        font-weight: 800;
         border-radius: 15px;
         text-align: center;
     }
