@@ -47,9 +47,9 @@ st.markdown("""
         position: absolute;
         background: linear-gradient(90deg, #eabcc3 0%, #f1d5d9 100%);
         top: 0; left: 0; right: 0; bottom: 0;
-        line-height: 45px;
+        line-height: 20px;
         color: #0e1117;
-        font-weight: 800;
+        font-weight: 150;
         border-radius: 15px;
         text-align: center;
     }
