@@ -10,11 +10,12 @@ from streamlit_calendar import calendar
 # 1. 網頁設定
 st.set_page_config(page_title="My Flight Calendar", layout="wide")
 
-# 2. 安全讀取金鑰 - 增加明確報錯
+# 2. 安全讀取金鑰
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("❌ 找不到金鑰！請去 Streamlit Settings -> Secrets 設定 GOOGLE_API_KEY")
 else:
     try:
+        # 這裡改用最標準的初始化方式
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     except Exception as e:
         st.error(f"❌ 金鑰設定出錯：{str(e)}")
@@ -81,12 +82,12 @@ with b1:
 with b2:
     uploaded_file = st.file_uploader("上傳", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-# 6. 核心辨識邏輯 (加強 Debug)
+# 6. 修正核心辨識邏輯：模型名稱更換
 if uploaded_file and st.button("🚀 開始解析班表"):
-    with st.spinner("AI 正在努力讀圖..."):
+    with st.spinner("AI 正在解析中，請稍候... 🐾"):
         try:
-            # 優先使用 1.5-flash，速度快且額度高
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # 修正：改用官方目前最穩定的名稱 'gemini-1.5-flash-latest'
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
             img = Image.open(uploaded_file)
             
             prompt = """
@@ -101,7 +102,7 @@ if uploaded_file and st.button("🚀 開始解析班表"):
             response = model.generate_content([prompt, img])
             res_text = response.text
             
-            # 容錯處理：用 Regex 抓取中括號內的 JSON
+            # 用 Regex 容錯抓取
             match = re.search(r'\[.*\]', res_text, re.DOTALL)
             
             if match:
@@ -117,11 +118,13 @@ if uploaded_file and st.button("🚀 開始解析班表"):
                 st.success(f"✅ 成功辨識 {len(events)} 個航班！")
                 st.rerun()
             else:
-                st.warning("⚠️ AI 沒能回傳正確格式，它看到了什麼：")
-                st.code(res_text) # 讓妳看到 AI 回傳了什麼鬼
+                st.warning("⚠️ AI 回傳格式不正確：")
+                st.code(res_text)
                 
         except Exception as e:
+            # 如果還是失敗，顯示具體錯誤，看看是否需要更換模型
             st.error(f"❌ 發生錯誤：{str(e)}")
+            st.info("💡 提示：如果出現 404，可能是該地區不支援此模型名稱，請確認 API Key 區域權限。")
 
 # 7. 名牌卡片
 f = st.session_state.form_data
