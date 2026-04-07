@@ -12,7 +12,7 @@ st.set_page_config(page_title="My Flight Calendar", layout="wide")
 
 # 2. 安全讀取金鑰
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("❌ 找不到金鑰！請去 Streamlit Settings -> Secrets 設定 GOOGLE_API_KEY")
+    st.error("❌ 找不到金鑰！請檢查 Streamlit Secrets 設定。")
 else:
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -56,11 +56,6 @@ st.markdown("""
         background-color: #161b22 !important; color: #d1d5db !important; border: 1.5px solid #4b5563 !important; border-radius: 15px !important;
     }
     .fc-event-title { font-size: 2.2rem !important; font-weight: 900 !important; color: #ffffff !important; }
-    .fc-v-event, .fc-daygrid-event {
-        background: rgba(162, 181, 205, 0.25) !important;
-        border-left: 6px solid #a2b5cd !important;
-        border-radius: 12px !important;
-    }
     header, footer { visibility: hidden; }
     </style>
 """, unsafe_allow_html=True)
@@ -81,25 +76,33 @@ with b1:
 with b2:
     uploaded_file = st.file_uploader("上傳", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-# 6. 核心辨識邏輯：強制使用 models/ 前綴解決 404
+# 6. 核心辨識邏輯：模型名稱自動相容測試
 if uploaded_file and st.button("🚀 開始解析班表"):
-    with st.spinner("AI 正在解析中... 🐾"):
-        try:
-            # 強制加上 models/ 前綴，這在某些 API 版本是必要的
-            model = genai.GenerativeModel('models/gemini-1.5-flash')
-            img = Image.open(uploaded_file)
-            
-            prompt = """
-            妳是專業空服員。請讀取圖中 2026年4月的班表。
-            1. 只抓粉紅色大數字班號。
-            2. 對應大白字日期。
-            3. 如果班號後有橫線標註為 overnight: true。
-            回傳 JSON: [{"title": "116", "start": "2026-04-03", "overnight": false}]
-            """
-            
-            response = model.generate_content([prompt, img])
-            res_text = response.text
-            
+    with st.spinner("AI 正在嘗試多個模型通道... 🐾"):
+        success = False
+        res_text = ""
+        # 測試清單：標準名稱、最新名稱、舊版名稱
+        model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro-vision']
+        
+        prompt = """
+        這是2026年4月的班表。請只抓取粉紅色大字班號及其對應日期。
+        如果班號後方有橫線，標註為 overnight: true。
+        請直接回傳 JSON: [{"title": "116", "start": "2026-04-03", "overnight": false}]
+        """
+        img = Image.open(uploaded_file)
+
+        for m_name in model_names:
+            try:
+                model = genai.GenerativeModel(m_name)
+                response = model.generate_content([prompt, img])
+                res_text = response.text
+                if res_text:
+                    success = True
+                    break
+            except Exception as e:
+                continue # 失敗就試下一個
+
+        if success:
             match = re.search(r'\[.*\]', res_text, re.DOTALL)
             if match:
                 raw_data = json.loads(match.group())
@@ -111,41 +114,30 @@ if uploaded_file and st.button("🚀 開始解析班表"):
                         ev["end"] = (d + timedelta(days=2)).strftime("%Y-%m-%d")
                     events.append(ev)
                 st.session_state.calendar_events = events
-                st.success(f"✅ 成功辨識 {len(events)} 個航班！")
+                st.success("✅ 辨識完成！")
                 st.rerun()
             else:
-                st.warning("AI 沒能抓到正確格式，內容如下：")
+                st.warning("AI 已連線但格式不對：")
                 st.code(res_text)
-                
-        except Exception as e:
-            # 如果 models/gemini-1.5-flash 還是失敗，嘗試備用名稱
-            try:
-                model = genai.GenerativeModel('gemini-1.5-pro')
-                response = model.generate_content([prompt, img])
-                # ... (重複上面的處理邏輯)
-            except:
-                st.error(f"❌ 嚴重錯誤：{str(e)}")
-                st.info("💡 如果持續出現 404，請檢查您的 Google Cloud 專案是否啟用了 Generative Language API。")
+        else:
+            st.error("❌ 所有模型通道皆無法連線 (404)。這通常代表您的 API Key 尚未開通 Gemini 權限，或該區域暫不支援。")
 
-# 7. 名牌卡片
+# 7. 名牌與月曆 (其餘部分維持原樣)
 f = st.session_state.form_data
-st.markdown(f"""
-    <div class="crew-card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <div style="font-size: 0.7rem; color: #a2b5cd; font-weight: bold;">CREW ID CARD</div>
-                <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff;">{f["name"] if f["name"] else "------"}</div>
-                <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800;">#{f["id"] if f["id"] else "------"}</div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-size: 1.1rem; color: #eabcc3; font-weight: 900; border: 2px solid #eabcc3; padding: 5px 15px; border-radius: 18px;">{f["fleet"]} / {f["rank"]}</div>
-                <div style="font-size: 1.2rem; color: #6c7a89; margin-top: 15px; font-weight: 900;">🗓️ 2026 APRIL</div>
-            </div>
+st.markdown(f"""<div class="crew-card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="font-size: 0.7rem; color: #a2b5cd; font-weight: bold;">CREW ID CARD</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff;">{f["name"] if f["name"] else "------"}</div>
+            <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800;">#{f["id"] if f["id"] else "------"}</div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 1.1rem; color: #eabcc3; font-weight: 900; border: 2px solid #eabcc3; padding: 5px 15px; border-radius: 18px;">{f["fleet"]} / {f["rank"]}</div>
+            <div style="font-size: 1.2rem; color: #6c7a89; margin-top: 15px; font-weight: 900;">🗓️ 2026 APRIL</div>
         </div>
     </div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
 
-# 8. 月曆
 calendar(events=st.session_state.calendar_events, options={
     "initialView": "dayGridMonth", "initialDate": "2026-04-01", "fixedWeekCount": False, "aspectRatio": 0.85, "headerToolbar": {"left":"", "center":"", "right":""}
 }, key="flight_calendar")
