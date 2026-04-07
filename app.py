@@ -14,42 +14,41 @@ try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
 except:
-    st.warning("⚠️ 請設定 API KEY")
+    st.warning("⚠️ 請在 Streamlit Secrets 中設定 API KEY")
 
 # 3. 初始化 Session State
 if 'calendar_events' not in st.session_state:
     st.session_state.calendar_events = []
 if 'form_data' not in st.session_state:
-    st.session_state.form_data = {"name": "", "id": "", "fleet": "A321", "rank": "FY"}
+    # 預設改為空值，讓使用者自行選擇
+    st.session_state.form_data = {"name": "", "id": "", "fleet": "---", "rank": "---"}
 
-# --- CSS 可愛圓潤調校：超大圓角、暖粉紅陰影、強制黑底 ---
+# --- CSS 視覺重塑：圓潤名牌、大字員編、暖粉紅主題 ---
 st.markdown("""
     <style>
-    /* 全域深色與可愛字體感 */
     :root { color-scheme: dark !important; }
-    .stApp { background-color: #0e1117 !important; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    .stApp { background-color: #0e1117 !important; }
     .main .block-container { padding-top: 1rem !important; }
 
-    /* 1. 名牌 Banner：超圓潤可愛感 */
+    /* 名牌卡片：增加深度與圓角 */
     .crew-card {
         background: linear-gradient(135deg, #1c2128 0%, #0e1117 100%);
         border: 2px solid #eabcc3;
         border-radius: 25px !important;
-        padding: 20px;
+        padding: 22px;
         margin-bottom: 15px;
-        box-shadow: 0 8px 20px rgba(234, 188, 195, 0.15);
+        box-shadow: 0 10px 25px rgba(234, 188, 195, 0.15);
     }
 
-    /* 2. 輸入框與按鈕：圓滾滾造型 */
+    /* 輸入框與下拉選單 */
     input[type="text"], .stSelectbox div[data-baseweb="select"] {
         background-color: #161b22 !important;
         color: #d1d5db !important;
-        border: 1.5px solid #6c7a89 !important;
+        border: 1.5px solid #4b5563 !important;
         border-radius: 15px !important;
-        height: 40px !important;
     }
-    input[type="text"]:focus { border-color: #eabcc3 !important; }
 
+    /* 圓潤按鈕：暖粉紅漸層 */
     div.stButton > button {
         background: linear-gradient(90deg, #eabcc3 0%, #f1d5d9 100%) !important;
         color: #0e1117 !important;
@@ -57,49 +56,34 @@ st.markdown("""
         font-weight: 800 !important;
         border-radius: 15px !important;
         height: 45px !important;
-        box-shadow: 0 4px 10px rgba(234, 188, 195, 0.3);
+        box-shadow: 0 4px 12px rgba(234, 188, 195, 0.25);
     }
 
-    /* 3. 月曆深度黑化與圓角 */
-    .fc { 
-        background-color: #0e1117 !important; 
-        border-radius: 20px !important; 
-        overflow: hidden !important; 
-    }
-    .fc-view-harness, .fc-scrollgrid, .fc-daygrid-day { background-color: #0e1117 !important; }
-    
-    /* 班號格子：也要圓圓的 */
-    .fc-event-title { 
-        font-size: 2.2rem !important; 
-        font-weight: 900 !important; 
-        color: #ffffff !important; 
-        text-align: center !important; 
-    }
+    /* 月曆大字體與黑底 */
+    .fc { background-color: #0e1117 !important; border-radius: 20px !important; overflow: hidden; }
+    .fc-event-title { font-size: 2.2rem !important; font-weight: 900 !important; color: #ffffff !important; text-align: center !important; }
     .fc-v-event, .fc-daygrid-event {
-        background: rgba(162, 181, 205, 0.2) !important; /* 霧霾藍半透明 */
+        background: rgba(162, 181, 205, 0.15) !important;
         border-left: 5px solid #a2b5cd !important;
         border-radius: 12px !important;
         min-height: 85px !important;
         margin: 4px !important;
     }
     
-    /* 日期數字：可愛灰 */
     .fc-daygrid-day-number { font-size: 1.2rem !important; color: #8b949e !important; padding: 10px !important; }
-    
-    /* 徹底消滅今日標記 */
     .fc-day-today { background-color: transparent !important; }
     .fc-theme-standard td, .fc-theme-standard th { border-color: #21262d !important; }
     .fc-toolbar, header, footer { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 4. 頂部功能區 (不再隱藏，改為橫向可愛排版)
-st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:0.9rem;'>✨ 班表小助手</p>", unsafe_allow_html=True)
+# 4. 功能控制區
+st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:0.9rem;'>✨ 個人資訊設定</p>", unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
-with c1: u_name = st.text_input("N", value=st.session_state.form_data["name"], placeholder="名字", label_visibility="collapsed")
+with c1: u_name = st.text_input("N", value=st.session_state.form_data["name"], placeholder="姓名", label_visibility="collapsed")
 with c2: u_id = st.text_input("I", value=st.session_state.form_data["id"], placeholder="員編", label_visibility="collapsed")
-with c3: u_fleet = st.selectbox("F", ["A321", "B738"], index=0, label_visibility="collapsed")
-with c4: u_rank = st.selectbox("R", ["FF", "FY"], index=1, label_visibility="collapsed")
+with c3: u_fleet = st.selectbox("F", ["請選擇機隊", "A321", "B738", "B777", "B787"], label_visibility="collapsed")
+with c4: u_rank = st.selectbox("R", ["請選擇職級", "FF", "FY", "AP", "CP"], label_visibility="collapsed")
 
 b1, b2 = st.columns([1, 2])
 with b1:
@@ -107,10 +91,11 @@ with b1:
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
 with b2:
-    uploaded_file = st.file_uploader("Upload", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    # 這裡改成中文標籤
+    uploaded_file = st.file_uploader("上傳班表照片", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-if uploaded_file and st.button("🚀 開始辨識照片"):
-    with st.spinner("AI 正在幫妳看班表... 🐾"):
+if uploaded_file and st.button("🚀 開始自動辨識"):
+    with st.spinner("AI 正在幫妳讀取班表... 🐾"):
         success = False
         for m_name in ['gemini-1.5-flash', 'gemini-2.5-flash']:
             try:
@@ -125,26 +110,31 @@ if uploaded_file and st.button("🚀 開始辨識照片"):
             except: continue
         if success: st.rerun()
 
-st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. 月曆上方：可愛名牌 Banner
+# 5. 月曆上方：高級圓潤名牌
 f = st.session_state.form_data
 st.markdown(f"""
     <div class="crew-card">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <div style="font-size: 0.7rem; color: #a2b5cd; letter-spacing: 2px; margin-bottom: 5px;">FLIGHT CREW</div>
-                <div style="font-size: 1.8rem; font-weight: 900; color: #f3f4f6;">
-                    {f["name"] if f["name"] else "Irene"} <span style="font-size: 0.9rem; color: #8b949e; font-weight: normal;">#{f["id"] if f["id"] else "000000"}</span>
+                <div style="font-size: 0.7rem; color: #a2b5cd; letter-spacing: 2px; margin-bottom: 5px; font-weight: bold;">CREW ID CARD</div>
+                <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff; line-height: 1.2;">
+                    {f["name"] if f["name"] != "" else "Irene"}
+                </div>
+                <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800; margin-top: 5px; letter-spacing: 1px;">
+                    #{f["id"] if f["id"] != "" else "000000"}
                 </div>
             </div>
             <div style="text-align: right;">
-                <div style="font-size: 1rem; color: #eabcc3; font-weight: 800; background: rgba(234, 188, 195, 0.1); padding: 5px 15px; border-radius: 15px; border: 1.5px solid #eabcc3;">
+                <div style="font-size: 1.1rem; color: #eabcc3; font-weight: 900; background: rgba(234, 188, 195, 0.1); padding: 8px 18px; border-radius: 18px; border: 2px solid #eabcc3; display: inline-block;">
                     {f["fleet"]} / {f["rank"]}
+                </div>
+                <div style="font-size: 1.2rem; color: #6c7a89; margin-top: 15px; font-weight: 900; letter-spacing: 1px;">
+                    🗓️ 2026 APRIL
                 </div>
             </div>
         </div>
-        <div style="font-size: 1.1rem; color: #6c7a89; margin-top: 15px; font-weight: 800;">🗓️ 2026 APRIL</div>
     </div>
 """, unsafe_allow_html=True)
 
