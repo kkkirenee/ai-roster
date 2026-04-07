@@ -7,17 +7,17 @@ import re
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar
 
-# 1. 網頁設定 (這行必須是除了 import 之外的第一行 Streamlit 指令)
+# 1. 網頁設定 (必須放在最前面)
 st.set_page_config(page_title="My Flight Calendar", layout="wide")
 
 # 2. 安全讀取金鑰
-if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Missing GOOGLE_API_KEY in Secrets.")
-else:
+if "GOOGLE_API_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    except Exception as e:
-        st.error(f"API Configuration Error: {str(e)}")
+    except:
+        st.error("API Key 設定失敗")
+else:
+    st.error("請在 Secrets 設定 GOOGLE_API_KEY")
 
 # 3. 讀取 CSV
 @st.cache_data
@@ -37,7 +37,7 @@ if 'calendar_events' not in st.session_state:
 if 'form_data' not in st.session_state:
     st.session_state.form_data = {"name": "", "id": "", "fleet": "---", "rank": "---"}
 
-# 5. CSS 視覺樣式
+# 5. CSS 視覺樣式 (移除了可能導致 Server Error 的換字代碼)
 st.markdown("""
     <style>
     :root { color-scheme: dark !important; }
@@ -48,6 +48,15 @@ st.markdown("""
         border: 2px solid #eabcc3; border-radius: 25px !important;
         padding: 22px; margin-bottom: 15px; box-shadow: 0 10px 25px rgba(234, 188, 195, 0.15);
     }
+    .detail-card {
+        background: #1c2128; border-radius: 20px; padding: 25px; margin-top: 20px;
+        border: 1.5px solid #eabcc3;
+    }
+    .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+    .info-label { color: #8b949e; font-size: 0.9rem; }
+    .info-value { color: #ffffff; font-weight: 800; font-size: 1.1rem; }
+    .checkin-highlight { color: #eabcc3; font-size: 1.6rem; font-weight: 900; }
+    
     div.stButton > button {
         background: linear-gradient(90deg, #eabcc3 0%, #f1d5d9 100%) !important;
         color: #0e1117 !important; border: none !important; font-weight: 800 !important; border-radius: 15px !important; height: 45px !important;
@@ -55,7 +64,7 @@ st.markdown("""
     input[type="text"], .stSelectbox div[data-baseweb="select"] {
         background-color: #161b22 !important; color: #d1d5db !important; border: 1.5px solid #4b5563 !important; border-radius: 15px !important;
     }
-    .fc-event-title { font-size: 2.2rem !important; font-weight: 900 !important; color: #ffffff !important; }
+    .fc-event-title { font-size: 2.2rem !important; font-weight: 900 !important; }
     .fc-v-event, .fc-daygrid-event {
         background: rgba(162, 181, 205, 0.25) !important;
         border-left: 6px solid #a2b5cd !important;
@@ -79,35 +88,30 @@ with b1:
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
 with b2:
-    uploaded_file = st.file_uploader("Upload", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("選擇班表照片", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-# 7. AI 辨識邏輯
+# 7. 辨識邏輯
 if uploaded_file and st.button("開始解析班表"):
-    with st.spinner("AI 正在努力讀圖..."):
+    with st.spinner("AI 正在讀圖..."):
         try:
-            # 自動偵測可用模型
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            target_model = next((m for m in available_models if 'flash' in m), available_models[0] if available_models else None)
-
-            if target_model:
-                model = genai.GenerativeModel(target_model)
-                img = Image.open(uploaded_file)
-                prompt = "Return JSON list: [{'title': '116', 'start': '2026-04-03', 'overnight': false}]. Only 2026-04 flights. If flight has a dash line after it, overnight: true."
-                response = model.generate_content([prompt, img])
-                match = re.search(r'\[.*\]', response.text, re.DOTALL)
-                if match:
-                    raw = json.loads(match.group())
-                    events = []
-                    for it in raw:
-                        ev = {"title": it['title'], "start": it['start'], "allDay": True}
-                        if it.get('overnight'):
-                            d = datetime.strptime(it['start'], "%Y-%m-%d")
-                            ev["end"] = (d + timedelta(days=2)).strftime("%Y-%m-%d")
-                        events.append(ev)
-                    st.session_state.calendar_events = events
-                    st.rerun()
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            img = Image.open(uploaded_file)
+            prompt = "Return JSON list: [{'title': '116', 'start': '2026-04-03', 'overnight': false}]. Only April 2026 flights. If flight has a dash line, overnight: true."
+            response = model.generate_content([prompt, img])
+            match = re.search(r'\[.*\]', response.text, re.DOTALL)
+            if match:
+                raw = json.loads(match.group())
+                events = []
+                for it in raw:
+                    ev = {"title": it['title'], "start": it['start'], "allDay": True}
+                    if it.get('overnight'):
+                        d = datetime.strptime(it['start'], "%Y-%m-%d")
+                        ev["end"] = (d + timedelta(days=2)).strftime("%Y-%m-%d")
+                    events.append(ev)
+                st.session_state.calendar_events = events
+                st.rerun()
         except Exception as e:
-            st.error(f"Error during analysis: {str(e)}")
+            st.error(f"解析失敗: {str(e)}")
 
 # 8. 名牌卡片
 f = st.session_state.form_data
@@ -127,7 +131,21 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# 9. 月曆顯示
-calendar(events=st.session_state.calendar_events, options={
-    "initialView": "dayGridMonth", "initialDate": "2026-04-01", "fixedWeekCount": False, "aspectRatio": 0.85, "headerToolbar": {"left":"", "center":"", "right":""}
+# 9. 月曆與互動
+cal_result = calendar(events=st.session_state.calendar_events, options={
+    "initialView": "dayGridMonth", "initialDate": "2026-04-01", "fixedWeekCount": False, "aspectRatio": 0.85, "headerToolbar": {"left":"", "center":"", "right":""},
+    "selectable": True,
 }, key="flight_calendar")
+
+# 10. 詳細起降資訊
+if cal_result.get("eventClick"):
+    flight_no = cal_result["eventClick"]["event"]["title"]
+    out = flight_db[flight_db['Flight'] == str(flight_no)]
+    if not out.empty:
+        row = out.iloc[0]
+        st.markdown(f"""
+            <div class="detail-card">
+                <div style="font-size: 2.2rem; font-weight: 900; color: #eabcc3;">{flight_no}</div>
+                <div class="info-row"><div class="info-label">去程</div><div class="info-value">{row['Dep']} → {row['Arr']} | {row['DepTime']}</div></div>
+            </div>
+        """, unsafe_allow_html=True)
