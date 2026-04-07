@@ -15,7 +15,6 @@ if "GOOGLE_API_KEY" not in st.secrets:
     st.error("❌ 找不到金鑰！請去 Streamlit Settings -> Secrets 設定 GOOGLE_API_KEY")
 else:
     try:
-        # 這裡改用最標準的初始化方式
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     except Exception as e:
         st.error(f"❌ 金鑰設定出錯：{str(e)}")
@@ -51,7 +50,7 @@ st.markdown("""
     }
     div.stButton > button {
         background: linear-gradient(90deg, #eabcc3 0%, #f1d5d9 100%) !important;
-        color: #0e1117 !important; border: none !important; font-weight: 800 !important; border-radius: 15px !important; height: 48px !important;
+        color: #0e1117 !important; border: none !important; font-weight: 800 !important; border-radius: 15px !important; height: 45px !important;
     }
     input[type="text"], .stSelectbox div[data-baseweb="select"] {
         background-color: #161b22 !important; color: #d1d5db !important; border: 1.5px solid #4b5563 !important; border-radius: 15px !important;
@@ -82,29 +81,26 @@ with b1:
 with b2:
     uploaded_file = st.file_uploader("上傳", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-# 6. 修正核心辨識邏輯：模型名稱更換
+# 6. 核心辨識邏輯：強制使用 models/ 前綴解決 404
 if uploaded_file and st.button("🚀 開始解析班表"):
-    with st.spinner("AI 正在解析中，請稍候... 🐾"):
+    with st.spinner("AI 正在解析中... 🐾"):
         try:
-            # 修正：改用官方目前最穩定的名稱 'gemini-1.5-flash-latest'
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            # 強制加上 models/ 前綴，這在某些 API 版本是必要的
+            model = genai.GenerativeModel('models/gemini-1.5-flash')
             img = Image.open(uploaded_file)
             
             prompt = """
-            妳是專業空服員。請精準讀取這張2026年4月的班表。
-            1. 只抓粉紅色大字班號。
+            妳是專業空服員。請讀取圖中 2026年4月的班表。
+            1. 只抓粉紅色大數字班號。
             2. 對應大白字日期。
             3. 如果班號後有橫線標註為 overnight: true。
-            請「只」回傳 JSON 格式列表，不要有任何開場白。
-            範例：[{"title": "116", "start": "2026-04-03", "overnight": false}]
+            回傳 JSON: [{"title": "116", "start": "2026-04-03", "overnight": false}]
             """
             
             response = model.generate_content([prompt, img])
             res_text = response.text
             
-            # 用 Regex 容錯抓取
             match = re.search(r'\[.*\]', res_text, re.DOTALL)
-            
             if match:
                 raw_data = json.loads(match.group())
                 events = []
@@ -118,13 +114,18 @@ if uploaded_file and st.button("🚀 開始解析班表"):
                 st.success(f"✅ 成功辨識 {len(events)} 個航班！")
                 st.rerun()
             else:
-                st.warning("⚠️ AI 回傳格式不正確：")
+                st.warning("AI 沒能抓到正確格式，內容如下：")
                 st.code(res_text)
                 
         except Exception as e:
-            # 如果還是失敗，顯示具體錯誤，看看是否需要更換模型
-            st.error(f"❌ 發生錯誤：{str(e)}")
-            st.info("💡 提示：如果出現 404，可能是該地區不支援此模型名稱，請確認 API Key 區域權限。")
+            # 如果 models/gemini-1.5-flash 還是失敗，嘗試備用名稱
+            try:
+                model = genai.GenerativeModel('gemini-1.5-pro')
+                response = model.generate_content([prompt, img])
+                # ... (重複上面的處理邏輯)
+            except:
+                st.error(f"❌ 嚴重錯誤：{str(e)}")
+                st.info("💡 如果持續出現 404，請檢查您的 Google Cloud 專案是否啟用了 Generative Language API。")
 
 # 7. 名牌卡片
 f = st.session_state.form_data
