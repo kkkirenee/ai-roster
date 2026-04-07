@@ -1,4 +1,5 @@
-import streamlit as st
+❌
+所有模型通道皆無法連線 (404)。這通常代表您的 API Key 尚未開通 Gemini 權限，或該區域暫不支援。import streamlit as st
 from PIL import Image
 import google.generativeai as genai
 import json
@@ -76,68 +77,75 @@ with b1:
 with b2:
     uploaded_file = st.file_uploader("上傳", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-# 6. 核心辨識邏輯：模型名稱自動相容測試
+# 6. 核心辨識邏輯：現場抓取可用模型
 if uploaded_file and st.button("🚀 開始解析班表"):
-    with st.spinner("AI 正在嘗試多個模型通道... 🐾"):
-        success = False
-        res_text = ""
-        # 測試清單：標準名稱、最新名稱、舊版名稱
-        model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro-vision']
-        
-        prompt = """
-        這是2026年4月的班表。請只抓取粉紅色大字班號及其對應日期。
-        如果班號後方有橫線，標註為 overnight: true。
-        請直接回傳 JSON: [{"title": "116", "start": "2026-04-03", "overnight": false}]
-        """
-        img = Image.open(uploaded_file)
+    with st.spinner("🔍 正在現場偵測可用模型通道..."):
+        try:
+            # 1. 現場抓取可用模型清單
+            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            
+            # 2. 挑選最適合的模型 (優先找 flash, 再找 pro, 最後隨便抓一個)
+            target_model = None
+            for m in available_models:
+                if 'flash' in m.lower(): target_model = m; break
+            if not target_model:
+                for m in available_models:
+                    if 'pro' in m.lower(): target_model = m; break
+            if not target_model and available_models:
+                target_model = available_models[0]
 
-        for m_name in model_names:
-            try:
-                model = genai.GenerativeModel(m_name)
+            if not target_model:
+                st.error("❌ 您的 API Key 無法執行 generateContent，請檢查 Google AI Studio 權限。")
+            else:
+                model = genai.GenerativeModel(target_model)
+                img = Image.open(uploaded_file)
+                prompt = """
+                這是一張2026年4月的班表。請讀取粉紅色大字班號及其對應日期。
+                班號後有橫線標記為 overnight: true。
+                回傳 JSON: [{"title": "116", "start": "2026-04-03", "overnight": false}]
+                """
                 response = model.generate_content([prompt, img])
                 res_text = response.text
-                if res_text:
-                    success = True
-                    break
-            except Exception as e:
-                continue # 失敗就試下一個
+                
+                match = re.search(r'\[.*\]', res_text, re.DOTALL)
+                if match:
+                    raw_data = json.loads(match.group())
+                    events = []
+                    for it in raw_data:
+                        ev = {"title": it['title'], "start": it['start'], "allDay": True}
+                        if it.get('overnight'):
+                            d = datetime.strptime(it['start'], "%Y-%m-%d")
+                            ev["end"] = (d + timedelta(days=2)).strftime("%Y-%m-%d")
+                        events.append(ev)
+                    st.session_state.calendar_events = events
+                    st.success(f"✅ 使用 {target_model} 辨識成功！")
+                    st.rerun()
+                else:
+                    st.warning("格式解析失敗，AI 回傳內容：")
+                    st.code(res_text)
+                    
+        except Exception as e:
+            st.error(f"❌ 偵測過程發生錯誤：{str(e)}")
 
-        if success:
-            match = re.search(r'\[.*\]', res_text, re.DOTALL)
-            if match:
-                raw_data = json.loads(match.group())
-                events = []
-                for it in raw_data:
-                    ev = {"title": it['title'], "start": it['start'], "allDay": True}
-                    if it.get('overnight'):
-                        d = datetime.strptime(it['start'], "%Y-%m-%d")
-                        ev["end"] = (d + timedelta(days=2)).strftime("%Y-%m-%d")
-                    events.append(ev)
-                st.session_state.calendar_events = events
-                st.success("✅ 辨識完成！")
-                st.rerun()
-            else:
-                st.warning("AI 已連線但格式不對：")
-                st.code(res_text)
-        else:
-            st.error("❌ 所有模型通道皆無法連線 (404)。這通常代表您的 API Key 尚未開通 Gemini 權限，或該區域暫不支援。")
-
-# 7. 名牌與月曆 (其餘部分維持原樣)
+# 7. 名牌卡片
 f = st.session_state.form_data
-st.markdown(f"""<div class="crew-card">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <div style="font-size: 0.7rem; color: #a2b5cd; font-weight: bold;">CREW ID CARD</div>
-            <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff;">{f["name"] if f["name"] else "------"}</div>
-            <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800;">#{f["id"] if f["id"] else "------"}</div>
-        </div>
-        <div style="text-align: right;">
-            <div style="font-size: 1.1rem; color: #eabcc3; font-weight: 900; border: 2px solid #eabcc3; padding: 5px 15px; border-radius: 18px;">{f["fleet"]} / {f["rank"]}</div>
-            <div style="font-size: 1.2rem; color: #6c7a89; margin-top: 15px; font-weight: 900;">🗓️ 2026 APRIL</div>
+st.markdown(f"""
+    <div class="crew-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 0.7rem; color: #a2b5cd; font-weight: bold;">CREW ID CARD</div>
+                <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff;">{f["name"] if f["name"] else "------"}</div>
+                <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800;">#{f["id"] if f["id"] else "------"}</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 1.1rem; color: #eabcc3; font-weight: 900; border: 2px solid #eabcc3; padding: 5px 15px; border-radius: 18px;">{f["fleet"]} / {f["rank"]}</div>
+                <div style="font-size: 1.2rem; color: #6c7a89; margin-top: 15px; font-weight: 900;">🗓️ 2026 APRIL</div>
+            </div>
         </div>
     </div>
-</div>""", unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
+# 8. 月曆顯示
 calendar(events=st.session_state.calendar_events, options={
     "initialView": "dayGridMonth", "initialDate": "2026-04-01", "fixedWeekCount": False, "aspectRatio": 0.85, "headerToolbar": {"left":"", "center":"", "right":""}
 }, key="flight_calendar")
