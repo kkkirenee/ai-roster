@@ -1,5 +1,3 @@
-❌
-所有模型通道皆無法連線 (404)。這通常代表您的 API Key 尚未開通 Gemini 權限，或該區域暫不支援。import streamlit as st
 from PIL import Image
 import google.generativeai as genai
 import json
