@@ -89,7 +89,25 @@ with b1:
     if st.button("💖 儲存資訊"):
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
-with b2:
+with b2:/* 強制修改 Streamlit 上傳按鈕的文字 */
+    section[data-testid="stFileUploader"] button span::text {
+        display: none;
+    }
+    section[data-testid="stFileUploader"] button::before {
+        content: "📎 上傳班表";
+        font-weight: bold;
+    }
+    
+    /* 針對不同版本的 Streamlit 強制覆蓋瀏覽按鈕文字 */
+    div[data-testid="stFileUploader"] section button div::after {
+        content: "上傳班表";
+        display: block;
+        position: absolute;
+        background: #eabcc3; /* 配合妳的暖粉紅 */
+        top: 0; left: 0; right: 0; bottom: 0;
+        line-height: 45px;
+        color: #0e1117;
+    }
     # 這裡已將標籤改為「上傳班表」
     uploaded_file = st.file_uploader("上傳班表", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
