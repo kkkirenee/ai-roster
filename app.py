@@ -21,26 +21,26 @@ except:
 @st.cache_data
 def load_flight_data():
     try:
-        # 假設 CSV 欄位: Flight, Dep, Arr, DepTime, ArrTime
+        # CSV 預期欄位: Flight, Dep, Arr, DepTime, ArrTime
         df = pd.read_csv('flight_data.csv')
         df['Flight'] = df['Flight'].astype(str)
         return df
     except:
-        # 如果沒檔案，先給空表避免報錯
         return pd.DataFrame(columns=['Flight', 'Dep', 'Arr', 'DepTime', 'ArrTime'])
 
 flight_db = load_flight_data()
 
-# 報到時間計算
+# 報到時間計算邏輯
 def calculate_checkin(dep_airport, dep_time_str):
     try:
         t = datetime.strptime(dep_time_str, "%H:%M")
+        # 桃園 TPE: -2:20 (140min) | 松山 TSA: -1:30 (90min)
         if dep_airport == "TPE":
             checkin = t - timedelta(minutes=140)
         elif dep_airport == "TSA":
             checkin = t - timedelta(minutes=90)
         else:
-            checkin = t - timedelta(hours=2)
+            checkin = t - timedelta(hours=2) # 預設
         return checkin.strftime("%H:%M")
     except:
         return "--:--"
@@ -66,14 +66,18 @@ st.markdown("""
         box-shadow: 0 10px 25px rgba(234, 188, 195, 0.15);
     }
     
+    /* 點擊後的航班詳細卡片 */
     .detail-card {
         background: #1c2128; border-radius: 20px; padding: 25px; margin-top: 20px;
         border: 1.5px solid #eabcc3; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     }
-    .info-row { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
-    .info-label { color: #8b949e; font-size: 0.85rem; }
-    .info-value { color: #ffffff; font-weight: bold; font-size: 1.1rem; }
-    .checkin-highlight { color: #eabcc3; font-size: 1.5rem; font-weight: 900; }
+    .info-row { 
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 8px; 
+    }
+    .info-label { color: #8b949e; font-size: 0.85rem; font-weight: bold; }
+    .info-value { color: #ffffff; font-weight: 800; font-size: 1.1rem; }
+    .checkin-highlight { color: #eabcc3; font-size: 1.6rem; font-weight: 900; }
 
     input[type="text"], .stSelectbox div[data-baseweb="select"] {
         background-color: #161b22 !important; color: #d1d5db !important; border: 1.5px solid #4b5563 !important; border-radius: 15px !important;
@@ -111,20 +115,19 @@ with b1:
 with b2:
     uploaded_file = st.file_uploader("上傳班表", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
-# --- 6. 核心辨識邏輯：處理過夜班橫槓 ---
+# --- 6. 核心辨識邏輯 ---
 if uploaded_file and st.button("🚀 開始自動辨識"):
-    with st.spinner("正在讀取 4 月班表... 🐾"):
+    with st.spinner("正在解析 4 月班表... 🐾"):
         try:
             model = genai.GenerativeModel(model_name='gemini-1.5-flash')
             img = Image.open(uploaded_file)
             prompt = """
             妳是專業空服員班表助手。請讀取圖中 2026年4月的航班。
             注意：
-            1. 只抓粉紅色的大數字班號。忽略小字的農曆和Rdo。
+            1. 只抓粉紅色大數字班號。忽略小字的農曆和Rdo。
             2. 如果班號後方有橫線（如 150—），代表這是過夜班，請標註為 "overnight": true。
-            3. 回傳格式為 JSON 列表：
-               [{"title": "116", "start": "2026-04-03", "overnight": false}, 
-                {"title": "150", "start": "2026-04-12", "overnight": true}]
+            3. 回傳嚴格 JSON 列表格式：
+               [{"title": "116", "start": "2026-04-03", "overnight": false}]
             """
             response = model.generate_content([prompt, img])
             match = re.search(r'\[.*\]', response.text, re.DOTALL)
@@ -132,21 +135,17 @@ if uploaded_file and st.button("🚀 開始自動辨識"):
                 raw_data = json.loads(match.group())
                 events = []
                 for item in raw_data:
-                    ev = {
-                        "title": item['title'],
-                        "start": item['start'],
-                        "allDay": True
-                    }
+                    ev = {"title": item['title'], "start": item['start'], "allDay": True}
                     if item.get("overnight"):
-                        # 如果是過夜班，結束時間設為隔天，月曆就會顯示一槓到底
+                        # 過夜班結束時間設為後天 (顯示橫跨兩日)
                         start_dt = datetime.strptime(item['start'], "%Y-%m-%d")
                         ev["end"] = (start_dt + timedelta(days=2)).strftime("%Y-%m-%d")
                     events.append(ev)
                 st.session_state.calendar_events = events
                 st.rerun()
-        except: st.error("辨識失敗，請再試一次")
+        except: st.error("辨識失敗")
 
-# 7. 名牌卡片
+# 7. 名牌卡片 (員編放大)
 f = st.session_state.form_data
 st.markdown(f"""
     <div class="crew-card">
@@ -170,19 +169,6 @@ cal_result = calendar(events=st.session_state.calendar_events, options={
     "selectable": True,
 }, key="flight_calendar")
 
-# 9. 航班詳細資訊（去回程整合）
+# 9. 航班詳細資訊顯示區 (互動邏輯)
 if cal_result.get("eventClick"):
     flight_no = cal_result["eventClick"]["event"]["title"]
-    outbound = flight_db[flight_db['Flight'] == str(flight_no)]
-    
-    if not outbound.empty:
-        row = outbound.iloc[0]
-        # 尋找回程 (通常是 +1)
-        inbound_no = str(int(flight_no) + 1)
-        inbound = flight_db[flight_db['Flight'] == inbound_no]
-        checkin_t = calculate_checkin(row['Dep'], row['DepTime'])
-        
-        st.markdown(f"""
-            <div class="detail-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <div style="font-size: 2rem; font-weight:
