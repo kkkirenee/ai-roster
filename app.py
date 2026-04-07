@@ -20,17 +20,17 @@ except:
 if 'calendar_events' not in st.session_state:
     st.session_state.calendar_events = []
 if 'form_data' not in st.session_state:
-    # 預設改為空值，讓使用者自行選擇
+    # 預設完全空白，不預設姓名與型號
     st.session_state.form_data = {"name": "", "id": "", "fleet": "---", "rank": "---"}
 
-# --- CSS 視覺重塑：圓潤名牌、大字員編、暖粉紅主題 ---
+# --- CSS 視覺重塑：圓潤名牌、大氣員編、全深色底 ---
 st.markdown("""
     <style>
     :root { color-scheme: dark !important; }
     .stApp { background-color: #0e1117 !important; }
     .main .block-container { padding-top: 1rem !important; }
 
-    /* 名牌卡片：增加深度與圓角 */
+    /* 名牌卡片：暖粉紅邊框 + 圓潤轉角 */
     .crew-card {
         background: linear-gradient(135deg, #1c2128 0%, #0e1117 100%);
         border: 2px solid #eabcc3;
@@ -40,7 +40,7 @@ st.markdown("""
         box-shadow: 0 10px 25px rgba(234, 188, 195, 0.15);
     }
 
-    /* 輸入框與下拉選單 */
+    /* 輸入框與下拉選單：保持圓潤 */
     input[type="text"], .stSelectbox div[data-baseweb="select"] {
         background-color: #161b22 !important;
         color: #d1d5db !important;
@@ -59,7 +59,7 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(234, 188, 195, 0.25);
     }
 
-    /* 月曆大字體與黑底 */
+    /* 月曆設定 */
     .fc { background-color: #0e1117 !important; border-radius: 20px !important; overflow: hidden; }
     .fc-event-title { font-size: 2.2rem !important; font-weight: 900 !important; color: #ffffff !important; text-align: center !important; }
     .fc-v-event, .fc-daygrid-event {
@@ -78,12 +78,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 4. 功能控制區
-st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:0.9rem;'>✨ 個人資訊設定</p>", unsafe_allow_html=True)
+st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:0.9rem;'>✨ 班表小助手</p>", unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
 with c1: u_name = st.text_input("N", value=st.session_state.form_data["name"], placeholder="姓名", label_visibility="collapsed")
 with c2: u_id = st.text_input("I", value=st.session_state.form_data["id"], placeholder="員編", label_visibility="collapsed")
-with c3: u_fleet = st.selectbox("F", ["請選擇機隊", "A321", "B738", "B777", "B787"], label_visibility="collapsed")
-with c4: u_rank = st.selectbox("R", ["請選擇職級", "FF", "FY", "AP", "CP"], label_visibility="collapsed")
+with c3: u_fleet = st.selectbox("F", ["請選擇機隊", "A321", "B738"], label_visibility="collapsed")
+with c4: u_rank = st.selectbox("R", ["請選擇職級", "FF", "FY"], label_visibility="collapsed")
 
 b1, b2 = st.columns([1, 2])
 with b1:
@@ -91,11 +91,10 @@ with b1:
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
 with b2:
-    # 這裡改成中文標籤
-    uploaded_file = st.file_uploader("上傳班表照片", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("上傳班表", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
 if uploaded_file and st.button("🚀 開始自動辨識"):
-    with st.spinner("AI 正在幫妳讀取班表... 🐾"):
+    with st.spinner("AI 正在解析班表中... 🐾"):
         success = False
         for m_name in ['gemini-1.5-flash', 'gemini-2.5-flash']:
             try:
@@ -112,7 +111,7 @@ if uploaded_file and st.button("🚀 開始自動辨識"):
 
 st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. 月曆上方：高級圓潤名牌
+# 5. 月曆上方：名牌卡片 (員編加大)
 f = st.session_state.form_data
 st.markdown(f"""
     <div class="crew-card">
@@ -120,10 +119,10 @@ st.markdown(f"""
             <div>
                 <div style="font-size: 0.7rem; color: #a2b5cd; letter-spacing: 2px; margin-bottom: 5px; font-weight: bold;">CREW ID CARD</div>
                 <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff; line-height: 1.2;">
-                    {f["name"] if f["name"] != "" else "Irene"}
+                    {f["name"] if f["name"] != "" else "尚未輸入"}
                 </div>
                 <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800; margin-top: 5px; letter-spacing: 1px;">
-                    #{f["id"] if f["id"] != "" else "000000"}
+                    #{f["id"] if f["id"] != "" else "------"}
                 </div>
             </div>
             <div style="text-align: right;">
