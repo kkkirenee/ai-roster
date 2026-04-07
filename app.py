@@ -22,12 +22,20 @@ if 'calendar_events' not in st.session_state:
 if 'form_data' not in st.session_state:
     st.session_state.form_data = {"name": "", "id": "", "fleet": "---", "rank": "---"}
 
-# --- CSS 視覺重塑：回歸原始穩定的上傳組件 ---
+# --- CSS 視覺重塑：調整標題字體與整體圓潤感 ---
 st.markdown("""
     <style>
     :root { color-scheme: dark !important; }
     .stApp { background-color: #0e1117 !important; }
     .main .block-container { padding-top: 1rem !important; }
+
+    /* 頂部標題：2.0rem, 非粗體 */
+    .sub-title {
+        color: #eabcc3;
+        font-size: 2.0rem;
+        font-weight: normal;
+        margin-bottom: 10px;
+    }
 
     /* 名牌卡片樣式 */
     .crew-card {
@@ -77,12 +85,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 4. 功能控制區
-st.markdown("<p style='color:#eabcc3; font-weight:bold; margin-bottom:5px; font-size:0.9rem;'>✨ 班表小助手</p>", unsafe_allow_html=True)
+st.markdown('<p class="sub-title">班表自動辨識</p>', unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
 with c1: u_name = st.text_input("N", value=st.session_state.form_data["name"], placeholder="姓名", label_visibility="collapsed")
 with c2: u_id = st.text_input("I", value=st.session_state.form_data["id"], placeholder="員編", label_visibility="collapsed")
-with c3: u_fleet = st.selectbox("F", ["請選擇機隊", "A321", "B738"], label_visibility="collapsed")
-with c4: u_rank = st.selectbox("R", ["請選擇職級", "FF", "FY"], label_visibility="collapsed")
+with c3: u_fleet = st.selectbox("F", ["機隊", "A321", "B738"], label_visibility="collapsed")
+with c4: u_rank = st.selectbox("R", ["職級", "FF", "FY"], label_visibility="collapsed")
 
 b1, b2 = st.columns([1, 2])
 with b1:
@@ -90,7 +98,6 @@ with b1:
         st.session_state.form_data = {"name": u_name, "id": u_id, "fleet": u_fleet, "rank": u_rank}
         st.rerun()
 with b2:
-    # 回歸原始上傳按鈕，最穩定！
     uploaded_file = st.file_uploader("上傳班表", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
 
 if uploaded_file and st.button("🚀 開始自動辨識"):
@@ -119,7 +126,7 @@ st.markdown(f"""
             <div>
                 <div style="font-size: 0.7rem; color: #a2b5cd; letter-spacing: 2px; margin-bottom: 5px; font-weight: bold;">CREW ID CARD</div>
                 <div style="font-size: 1.8rem; font-weight: 900; color: #ffffff; line-height: 1.2;">
-                    {f["name"] if f["name"] != "" else "尚未輸入"}
+                    {f["name"] if f["name"] != "" else "------"}
                 </div>
                 <div style="font-size: 1.4rem; color: #d1d5db; font-weight: 800; margin-top: 5px; letter-spacing: 1px;">
                     #{f["id"] if f["id"] != "" else "------"}
